@@ -23,7 +23,6 @@ setup(
     ],
     python_requires=">=3.10",
     project_urls={
-        "Documentation": "https://github.com/jobanpreet/metaocr#readme",
-        "Source Code": "https://github.com/jobanpreet/metaocr",
+        "Source Code": "https://github.com/jobanpreet495/parsepro",
     },
 )
