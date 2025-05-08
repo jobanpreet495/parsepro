@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parsepro"
+version = "0.1.1"
+description = "A library for parsing various file formats to  markdown format"
+readme = "README.md"
+authors = [
+    {name = "Jobanpreet Singh", email = "singhjoban495@gmail.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "together" ,
+    "pdf2image==1.17.0" ,
+    "PyPDF2==3.0.1" ,
+    "python-dotenv"
+]
+requires-python = ">=3.10"
+
+[project.urls]
+"Homepage" = "https://github.com/jobanpreet495/parsepro"
+"Bug Tracker" = "https://github.com/jobanpreet495/parsepro/issues"
