@@ -1,3 +1,4 @@
 together
 pdf2image==1.17.0
 PyPDF2==3.0.1
+python-dotenv
