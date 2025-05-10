@@ -15,7 +15,7 @@ ParsePro is a Python library that converts image/pdf into Markdown format using 
 ## Requirements
 
 - Python 3.10+
-- Together API key (required for authentication)
+- Together API key (required for authentication)/ Openai Key/ Groq Key
 
 
 ## Installation
@@ -29,16 +29,29 @@ pip install parsepro
 ```bash
 from parsepro import ImageToMarkdown
 
-# Initialize the client with your Together API key
-# Note: You can also set your API key as an environment variable named TOGETHER_API_KEY.
-import os 
-# os.environ['TOGETHER_API_KEY'] = ""
+# Initialize the client with your preferred provider and API key.
+# Supported providers: "together", "openai", "groq"
+# You can either pass the API key directly or set it via environment variable:
+# - TOGETHER_API_KEY for Together
+# - OPENAI_API_KEY for OpenAI
+# - GROQ_API_KEY for Groq
 
-image_to_markdown = ImageToMarkdown()
+import os
+# Example: os.environ['TOGETHER_API_KEY'] = "your_api_key_here"
 
-# Convert an image to Markdown
-markdown_content = image_to_markdown.convert_image_to_markdown(image_path = "path/to/your/image.jpg")  # image_url = "" , prompt = ""
+image_to_markdown = ImageToMarkdown(provider="together")  # or "openai", "groq"
+
+# Convert an image to Markdown.
+# You can pass either a local file path or a remote image URL.
+# You can also override the default system prompt if needed.
+
+markdown_content = image_to_markdown.convert_image_to_markdown(
+    image_path="path/to/your/image.jpg"  # or image_url="https://example.com/image.png"
+    # prompt="Custom prompt here..."  # optional
+)
+
 print(markdown_content)
+
 ```
 
 
