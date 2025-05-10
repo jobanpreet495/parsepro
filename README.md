@@ -21,6 +21,7 @@ ParsePro is a Python library that converts image/pdf into Markdown format using 
 ## Installation
 
 ```bash
+!apt-get install poppler-utils
 pip install parsepro
 ```
 
