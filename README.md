@@ -31,7 +31,7 @@ from parsepro import ImageToMarkdown
 
 # Initialize the client with your Together API key
 # Note: You can also set your API key as an environment variable named TOGETHER_API_KEY.
-# import os 
+import os 
 # os.environ['TOGETHER_API_KEY'] = ""
 
 image_to_markdown = ImageToMarkdown()
