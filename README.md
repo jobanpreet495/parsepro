@@ -70,11 +70,3 @@ markdown_content = pdf_to_markdown.convert_pdf_to_markdown(pdf_path = "path/to/y
 markdown_content = pdf_to_markdown.convert_pdf_to_markdown(pdf_path = "path/to/your/your_pdf.pdf",prompt = "")
 
 ```
-
-
-
-rm -rf dist/  # Remove old distribution files
-python -m build
-
-python -m twine upload dist/*
-
