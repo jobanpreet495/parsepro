@@ -18,44 +18,39 @@ ParsePro is a Python library that converts image/pdf into Markdown format using 
 - Together API key (required for authentication)
 
 
-## For Developers
-
-1. Clone repository
-
-2 . Install the package with:
+## Installation
 
 ```bash
-pip install -e .
+pip install parsepro
 ```
-
 
 ## Usage for Image
 ```bash
-from parsepro.image_parser import ImageToMarkdown
+from parsepro import ImageToMarkdown
 
 # Initialize the client with your Together API key
 # Note: You can also set your API key as an environment variable named TOGETHER_API_KEY.
 # import os 
 # os.environ['TOGETHER_API_KEY'] = ""
 
-image_to_markdown = ImageToMarkdown(api_key="your_api_key_here")
+image_to_markdown = ImageToMarkdown()
 
 # Convert an image to Markdown
-markdown_content = image_to_markdown.convert_image_to_markdown(image_path = "path/to/your/image.jpg")  # image_url = ""
+markdown_content = image_to_markdown.convert_image_to_markdown(image_path = "path/to/your/image.jpg")  # image_url = "" , prompt = ""
 print(markdown_content)
 ```
 
 
 ## Usage for pdf
 ```bash
-from parsepro.pdf_parser import PDFToMarkdown
+from parsepro import PDFToMarkdown
 
 # Initialize the client with your Together API key
 # Note: You can also set your API key as an environment variable named TOGETHER_API_KEY.
 # import os 
 # os.environ['TOGETHER_API_KEY'] = ""
 
-pdf_to_markdown = PDFToMarkdown(api_key="your_api_key_here")
+pdf_to_markdown = PDFToMarkdown()
 
 # Convert an image to Markdown
 markdown_content = pdf_to_markdown.convert_pdf_to_markdown(pdf_path = "path/to/your/your_pdf.pdf") # pdf_url = "" and pages_to_parse = "2" or range "2-8"
@@ -63,4 +58,23 @@ print(markdown_content)
 ```
 
 
+## Define  custom prompt
+
+```bash
+
+# Specify prompt for your usecase
+
+# Convert an image to Markdown
+markdown_content = pdf_to_markdown.convert_pdf_to_markdown(pdf_path = "path/to/your/your_pdf.pdf", prompt = "") # pdf_url = "" and pages_to_parse = "2" or range "2-8"
+
+markdown_content = pdf_to_markdown.convert_pdf_to_markdown(pdf_path = "path/to/your/your_pdf.pdf",prompt = "")
+
+```
+
+
+
+rm -rf dist/  # Remove old distribution files
+python -m build
+
+python -m twine upload dist/*
 

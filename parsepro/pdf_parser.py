@@ -127,9 +127,21 @@ class PDFToMarkdown:
 
 
 
-    def convert_pdf_to_markdown(self, pdf_path: str = None , pdf_url: str = None , pages_to_parse: str = None) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str = None ,prompt:str=None, pdf_url: str = None , pages_to_parse: str = None) -> str:
         """
         Converts a PDF file to Markdown format by processing its pages as images.
+
+         Args:
+        pdf_path (str, optional): Path to a local PDF file. Defaults to None.
+        pdf_url (str, optional): URL to a PDF file. Defaults to None.
+        pages_to_parse (str, optional): Range of pages to convert in format "start-end" 
+                                        (e.g., "2-7" to convert pages 2 through 7). 
+                                        If None, converts all pages. Defaults to None.
+        prompt (str , optional): prompt: Instructions for how the pdf should be processed or described.
+    
+        Returns:
+            str: Markdown representation of the specified PDF pages.
+
         """
         if not pdf_path and not pdf_url:
             raise ValueError("Either 'pdf_path' or 'pdf_url' must be provided.")
@@ -164,7 +176,7 @@ class PDFToMarkdown:
             markdown_parts = []
             for image_path in image_paths:
                 logger.info(f"Processing image: {image_path}")
-                markdown = self.client.convert_image_to_markdown(image_path=image_path)
+                markdown = self.client.convert_image_to_markdown(prompt=prompt,image_path=image_path)
                 markdown_parts.append(markdown)
 
             # Combine Markdown parts from all pages

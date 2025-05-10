@@ -22,16 +22,34 @@ class ImageToMarkdown:
             raise ValueError("API key is required. Set TOGETHER_API_KEY environment variable or pass as an argument.")
         
         self.client = Together(api_key=self.api_key)
-        self.system_prompt = """
+        self.__system_prompt = """
     
-        Convert the provided image into Markdown format. Ensure that all content from the page is included, such as headers, footers, subtexts, images (with alt text if possible), tables, and any other elements.
+        Extract all content from the provided image or PDF and convert it to clean, structured Markdown format.
 
-        Requirements:
-        - Output Only Markdown: Return solely the Markdown content without any additional explanations or comments.
-        - No Delimiters: Do not use code fences or delimiters like ```markdown.
-        - Complete Content: Do not omit any part of the page, including headers, footers, and subtext.
+            REQUIREMENTS:
+            1. Return ONLY the extracted content in proper Markdown syntax
+            2. Preserve the original document structure including:
+            - Headings (h1-h6)
+            - Paragraphs
+            - Lists (ordered and unordered)
+            - Tables
+            - Text formatting (bold, italic, etc.)
+            - Links (maintain href attributes)
+            - Image placeholders with descriptive alt text
+            - Code blocks and inline code
+            - Blockquotes
+            - Horizontal rules
 
-        Note :  Do not output additional  explanations or comments.  
+            IMPORTANT:
+            - Do not include any explanatory text, comments, or meta-information about the conversion
+            - Do not wrap the output in code blocks or delimiters
+            - Maintain the hierarchical structure of the original document
+            - Preserve header/footer information when present
+            - Format tables properly with aligned columns
+            - Include captions for figures and tables if present
+            - For equations or mathematical notation, use proper Markdown math syntax
+
+            This extracted content will be used for direct integration into documentation systems.
         """
         logger.info("ImageToMarkdown initialized with Together API client.")
 
@@ -66,14 +84,29 @@ class ImageToMarkdown:
             raise ValueError("Failed to download image from URL.") from e
 
 
-    def convert_image_to_markdown(self, image_path: str = None , image_url:str  = None) -> str:
+    def convert_image_to_markdown(self, image_path: str = None , image_url:str  = None , prompt:str = None ,) -> str:
         """
         Converts an image to Markdown format using the Together API.
         
-        The user can provide either a local `image_path` or an `image_url`.
+        This function processes an image and returns its Markdown representation based on
+        the provided prompt. The image can be specified either by a local file path or a URL.
+        
+        Args:
+            prompt: Instructions for how the image should be processed or described.
+            image_path (str, optional): Path to a local image file. Defaults to None.
+            image_url (str, optional): URL of an image to process. Defaults to None.
+            
+        Returns:
+            str: Markdown representation of the processed image.
+            
+        Note:
+            Either image_path or image_url must be provided, but not both.
         """
         if not (image_path or image_url):
             raise ValueError("Either 'image_path' or 'image_url' must be provided.")
+        
+        if prompt is None:
+            prompt = self.__system_prompt
 
         if image_path:
             logger.info("Processing local image path.")
@@ -87,7 +120,7 @@ class ImageToMarkdown:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": self.system_prompt},
+                    {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
                         "image_url": {
