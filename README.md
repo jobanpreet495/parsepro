@@ -3,7 +3,7 @@
 
 **🔍 What is ParsePro?**
 
-**ParsePro** is a Python library that converts images and PDFs into clean, structured Markdown format using powerful vision-language models. It supports multiple AI providers—**Together**, **OpenAI**, and **Groq**—and leverages models like **LLaMA 3**, **GPT-4o**, and **Mixtral** to extract content with high accuracy.
+**ParsePro** is a Python library that converts images and PDFs into clean, structured Markdown format using powerful vision-language models. It supports multiple AI providers—**Together**, **OpenAI**, and **Groq**—and leverages models like **Llama-3.2-11B-Vision**, **GPT-4o**, and **Llama-4-scout-17b-16e-instruct** to extract content with high accuracy.
 
 ParsePro preserves the original structure of documents, including:
 
