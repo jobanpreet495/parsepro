@@ -4,4 +4,4 @@
 from .image_parser import *
 from .pdf_parser import *
 
-__version__ = "0.1.1"
+__version__ = "1.0.0"
