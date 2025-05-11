@@ -39,7 +39,7 @@ pip install parsepro
 ```
 
 ## Usage for Image
-```
+```bash
 from parsepro import ImageToMarkdown
 
 # Initialize the client with your preferred provider and API key.
