@@ -5,10 +5,6 @@ import tempfile
 import requests
 import shutil
 from urllib.parse import urlparse
-import asyncio
-
-
-
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -174,7 +170,7 @@ class PDFToMarkdown:
             # If using Anthropic provider with a local PDF, use the specialized method
             if pdf_path  and self.provider == "anthropic":
                 logger.info(f"Processing PDF with Anthropic API: {pdf_path}")
-                markdown = self.convert_pdf(pdf_path = pdf_path)
+                markdown = self.convert_pdf(pdf_path = pdf_path,kwargs=kwargs, page_range=pages_to_parse)
                 
                 # Handle JSON output if requested
                 if kwargs and kwargs.get("json") == True:
@@ -183,7 +179,7 @@ class PDFToMarkdown:
             
             elif pdf_url and self.provider=="anthropic":
                 logger.info(f"Processing PDF with Anthropic API: {pdf_url}")
-                markdown = self.convert_pdf(pdf_url=pdf_url)
+                markdown = self.convert_pdf(pdf_url=pdf_url,kwargs=kwargs ,page_range=pages_to_parse)
                 
                 # Handle JSON output if requested
                 if kwargs and kwargs.get("json") == True:
@@ -240,9 +236,7 @@ class PDFToMarkdown:
             self._cleanup_temp_dir(temp_dir)
 
 
-
-
-    async def anthropic_pdf_to_markdown(self, pdf_path=None, pdf_url=None, max_concurrent=5):
+    async def anthropic_pdf_to_markdown(self, pdf_path=None, pdf_url=None, max_concurrent=5, page_range=None, kwargs=None):
         """
         Convert PDF to Markdown using Claude API with concurrent processing.
         
@@ -250,6 +244,8 @@ class PDFToMarkdown:
             pdf_path: Path to the local PDF file (optional)
             pdf_url: URL to a PDF file (optional)
             max_concurrent: Maximum number of concurrent API calls
+            page_range: Range of pages to process (e.g., "1-5", "3-7") (optional)
+                        Page numbering starts at 1 to match PDF viewers
         
         Returns:
             Markdown string of the PDF content with pages in order
@@ -261,9 +257,14 @@ class PDFToMarkdown:
         import base64
         import asyncio
         import httpx
+        import logging
+        import time
         from concurrent.futures import ThreadPoolExecutor
         from PyPDF2 import PdfReader, PdfWriter
         import anthropic
+        
+        # Set up detailed logging
+        logging.info(f"Starting PDF to Markdown conversion with parameters: pdf_path={pdf_path}, pdf_url={pdf_url}, max_concurrent={max_concurrent}, page_range={page_range}")
         
         # Validate input parameters
         if pdf_path is None and pdf_url is None:
@@ -273,50 +274,140 @@ class PDFToMarkdown:
         
         # Get PDF data
         if pdf_url is not None:
-            # Download PDF from URL
-            async with httpx.AsyncClient() as client:
-                response = await client.get(pdf_url)
-                pdf_bytes = io.BytesIO(response.content)
-            pdf = PdfReader(pdf_bytes)
+            # Download PDF from URL with retries and extended timeout
+            max_retries = 3
+            timeout = httpx.Timeout(60.0, connect=30.0)  # 60 seconds total, 30 seconds for connection
+            
+            for retry in range(max_retries):
+                try:
+                    logging.info(f"Attempting to download PDF from {pdf_url} (attempt {retry+1}/{max_retries})")
+                    start_time = time.time()
+                    async with httpx.AsyncClient(timeout=timeout) as client:
+                        response = await client.get(pdf_url)
+                        download_time = time.time() - start_time
+                        logging.info(f"Download took {download_time:.2f} seconds")
+                        
+                        if response.status_code == 200:
+                            pdf_bytes = io.BytesIO(response.content)
+                            pdf_size = len(response.content)
+                            logging.info(f"Successfully downloaded PDF from {pdf_url} (size: {pdf_size/1024:.2f} KB)")
+                            break
+                        else:
+                            logging.error(f"Failed to download PDF. Status code: {response.status_code}")
+                            raise ValueError(f"Failed to download PDF. Status code: {response.status_code}")
+                except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError) as e:
+                    if retry < max_retries - 1:
+                        wait_time = 2 ** retry  # Exponential backoff
+                        logging.warning(f"Connection error: {str(e)}. Retrying in {wait_time} seconds...")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logging.error(f"Failed to download PDF after {max_retries} attempts: {str(e)}")
+                        raise ValueError(f"Failed to download PDF after {max_retries} attempts: {str(e)}")
+            
+            try:
+                logging.info("Parsing downloaded PDF...")
+                start_time = time.time()
+                pdf = PdfReader(pdf_bytes)
+                parsing_time = time.time() - start_time
+                logging.info(f"PDF parsing took {parsing_time:.2f} seconds")
+            except Exception as e:
+                logging.error(f"Error parsing PDF: {str(e)}")
+                raise ValueError(f"Error parsing PDF: {str(e)}")
         else:
             # Read local PDF file
-            pdf = PdfReader(pdf_path)
+            try:
+                logging.info(f"Reading PDF from local path: {pdf_path}")
+                start_time = time.time()
+                pdf = PdfReader(pdf_path)
+                parsing_time = time.time() - start_time
+                logging.info(f"PDF parsing took {parsing_time:.2f} seconds")
+            except Exception as e:
+                logging.error(f"Error reading PDF from path {pdf_path}: {str(e)}")
+                raise ValueError(f"Error reading PDF from path {pdf_path}: {str(e)}")
         
         num_pages = len(pdf.pages)
+        logging.info(f"PDF loaded successfully with {num_pages} pages")
+        
+        # Parse page range if provided
+        pages_to_process = list(range(num_pages))
+        if page_range:
+            try:
+                # Parse the range (e.g., "3-5")
+                start, end = map(int, page_range.split('-'))
+                # Convert from 1-indexed (user-friendly) to 0-indexed (internal)
+                start = max(0, start - 1)  # Ensure start is not negative
+                end = min(num_pages, end)  # Ensure end is not beyond last page
+                pages_to_process = list(range(start, end))
+                
+                if not pages_to_process:
+                    raise ValueError(f"Invalid page range: {page_range}. PDF has {num_pages} pages.")
+            except ValueError as e:
+                if "Invalid page range" in str(e):
+                    raise
+                raise ValueError(f"Invalid page range format: {page_range}. Use format like '1-5'")
+        
+        logging.info(f"Processing pages: {[p+1 for p in pages_to_process]}")
         
         # Extract pages using a thread pool (since PDF operations are CPU-bound)
         def extract_page(page_num):
-            writer = PdfWriter()
-            writer.add_page(pdf.pages[page_num])
-            
-            page_bytes = io.BytesIO()
-            writer.write(page_bytes)
-            page_bytes.seek(0)
-            
-            return page_num, base64.standard_b64encode(page_bytes.read()).decode("utf-8")
+            try:
+                logging.info(f"Extracting page {page_num+1}...")
+                start_time = time.time()
+                
+                writer = PdfWriter()
+                writer.add_page(pdf.pages[page_num])
+                
+                page_bytes = io.BytesIO()
+                writer.write(page_bytes)
+                page_bytes.seek(0)
+                
+                page_data = base64.standard_b64encode(page_bytes.read()).decode("utf-8")
+                extraction_time = time.time() - start_time
+                logging.info(f"Page {page_num+1} extraction took {extraction_time:.2f} seconds")
+                
+                return page_num, page_data
+            except Exception as e:
+                logging.error(f"Error extracting page {page_num+1}: {str(e)}")
+                return page_num, None
         
-        # Run extract_page for all pages in a thread pool
+        # Run extract_page for specified pages in a thread pool
+        logging.info("Starting page extraction...")
         loop = asyncio.get_event_loop()
         extracted_pages = []
         with ThreadPoolExecutor() as executor:
             futures = []
-            for page_num in range(num_pages):
+            for page_num in pages_to_process:
                 future = loop.run_in_executor(executor, extract_page, page_num)
                 futures.append(future)
             
             # Wait for all futures to complete
             for future in await asyncio.gather(*futures):
-                extracted_pages.append(future)
+                if future[1] is not None:  # Only add successful extractions
+                    extracted_pages.append(future)
+        
+        if not extracted_pages:
+            raise ValueError("Failed to extract any pages from the PDF")
+        
+        logging.info(f"Successfully extracted {len(extracted_pages)} pages")
         
         # Process a single page with Claude API (this runs in a thread pool)
         def process_page(page_num, page_data):
+            logging.info(f"Processing page {page_num+1} with Claude API...")
+            start_time = time.time()
+            
             client = anthropic.Anthropic()
             
+            if kwargs is not None:
+                temperature = kwargs.get("temperature", 0)
+            else:
+                temperature = 0
+            
             try:
-                # Make API call
+                # Make API call with timeout
                 message = client.messages.create(
                     model="claude-3-7-sonnet-20250219",
-                    max_tokens=2048,
+                    max_tokens=4096,
+                    temperature=temperature,
                     messages=[
                         {
                             "role": "user",
@@ -346,16 +437,19 @@ class PDFToMarkdown:
                 )
                 
                 page_markdown = message.content[0].text
+                processing_time = time.time() - start_time
+                logging.info(f"Page {page_num+1} processing took {processing_time:.2f} seconds")
                 
                 # Add page indicator if multi-page document
-                if num_pages > 1:
+                if len(pages_to_process) > 1:
+                    # Display the actual PDF page number (1-indexed) to the user
                     page_markdown = f"\n\n## Page {page_num + 1}\n\n{page_markdown}"
                     
                 return page_num, page_markdown
                 
             except Exception as e:
-                print(f"Error processing page {page_num}: {str(e)}")
-                return page_num, f"\n\n## Page {page_num + 1}\n\n*Error processing this page*"
+                logging.error(f"Error processing page {page_num+1} with Claude API: {str(e)}")
+                return page_num, f"\n\n## Page {page_num + 1}\n\n*Error processing this page: {str(e)}*"
         
         # Process all pages with limited concurrency
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -363,26 +457,50 @@ class PDFToMarkdown:
         
         async def process_with_semaphore(page_num, page_data):
             async with semaphore:
-                return await loop.run_in_executor(None, process_page, page_num, page_data)
+                try:
+                    # Add a timeout to prevent hanging
+                    return await asyncio.wait_for(
+                        loop.run_in_executor(None, process_page, page_num, page_data),
+                        timeout=120  # 2 minutes timeout per page
+                    )
+                except asyncio.TimeoutError:
+                    logging.error(f"Timeout while processing page {page_num+1}")
+                    return page_num, f"\n\n## Page {page_num + 1}\n\n*Error: Processing timed out after 120 seconds*"
         
         # Create and gather tasks
+        logging.info("Starting Claude API processing...")
         tasks = []
         for page_num, page_data in extracted_pages:
             task = asyncio.create_task(process_with_semaphore(page_num, page_data))
             tasks.append(task)
         
-        # Wait for all tasks to complete
-        for result in await asyncio.gather(*tasks):
-            results.append(result)
+        # Wait for all tasks to complete with overall timeout
+        try:
+            results_gathered = await asyncio.wait_for(
+                asyncio.gather(*tasks),
+                timeout=300  # 5 minutes overall timeout
+            )
+            for result in results_gathered:
+                results.append(result)
+        except asyncio.TimeoutError:
+            logging.error("Overall timeout exceeded while processing pages")
+            # Add partial results if available
+            for task in tasks:
+                if task.done():
+                    try:
+                        results.append(task.result())
+                    except Exception:
+                        pass  # Ignore errors in completed tasks
         
         # Sort results by page number and join
         results.sort(key=lambda x: x[0])
         all_markdown = [result[1] for result in results]
         
+        logging.info(f"Successfully processed {len(results)} pages with Claude API")
+        
         return "\n\n".join(all_markdown)
-
     # Wrapper function for easier use
-    def convert_pdf(self, pdf_path=None, pdf_url=None, max_concurrent=5):
+    def convert_pdf(self, pdf_path=None, pdf_url=None, max_concurrent=5, page_range=None, kwargs=None):
         """
         Synchronous wrapper for the async function
         
@@ -390,6 +508,8 @@ class PDFToMarkdown:
             pdf_path: Path to the local PDF file (optional)
             pdf_url: URL to a PDF file (optional)
             max_concurrent: Maximum number of concurrent API calls
+            page_range: Range of pages to process (e.g., "1-5", "3-7") (optional)
+                        Page numbering starts at 1 to match PDF viewers
         
         Returns:
             Markdown string of the PDF content
@@ -397,4 +517,44 @@ class PDFToMarkdown:
         Note:
             Either pdf_path or pdf_url must be provided, but not both.
         """
-        return asyncio.run(self.anthropic_pdf_to_markdown(pdf_path=pdf_path, pdf_url=pdf_url, max_concurrent=max_concurrent))
+        import asyncio
+        import logging
+        import time
+        
+        start_time = time.time()
+        logging.info(f"Starting PDF conversion: pdf_path={pdf_path}, pdf_url={pdf_url}, page_range={page_range}")
+        
+        try:
+            # Create a new event loop to ensure a clean state
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            result = loop.run_until_complete(
+                self.anthropic_pdf_to_markdown(
+                    pdf_path=pdf_path, 
+                    pdf_url=pdf_url, 
+                    max_concurrent=max_concurrent,
+                    page_range=page_range,
+                    kwargs=kwargs
+                )
+            )
+            
+            total_time = time.time() - start_time
+            logging.info(f"PDF conversion completed in {total_time:.2f} seconds")
+            
+            return result
+        except ValueError as e:
+            logging.error(f"Error in PDF conversion: {str(e)}")
+            return f"## Error converting PDF\n\n{str(e)}"
+        except asyncio.TimeoutError:
+            logging.error("PDF conversion timed out")
+            return "## Error converting PDF\n\nThe operation timed out. Please try with a smaller page range or a different PDF."
+        except Exception as e:
+            logging.error(f"Unexpected error in PDF conversion: {str(e)}")
+            return f"## Unexpected error\n\n{str(e)}"
+        finally:
+            # Clean up the event loop
+            try:
+                loop.close()
+            except:
+                pass
